@@ -5,6 +5,7 @@
 import React, { useState, KeyboardEvent, useEffect } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { useInputHistory } from '@/hooks/useInputHistory';
+import { Send } from 'lucide-react';
 
 interface EditRequestFormProps {
   mode: 'chat' | 'edit';
@@ -133,16 +134,6 @@ export default function EditRequestForm({
               <span className="flex items-center gap-1">
                 <span>|</span>
                 <span>Alt+↑↓: 履歴</span>
-                {(canGoBack || canGoForward) && (
-                  <span className="flex items-center gap-0.5">
-                    <span 
-                      className={`w-1 h-1 rounded-full ${canGoBack ? 'bg-current' : 'bg-gray-400'}`}
-                    ></span>
-                    <span 
-                      className={`w-1 h-1 rounded-full ${canGoForward ? 'bg-current' : 'bg-gray-400'}`}
-                    ></span>
-                  </span>
-                )}
               </span>
             )}
           </div>
@@ -154,8 +145,7 @@ export default function EditRequestForm({
               !input.trim() || isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
             }`}
             style={{
-              background: colors.accent,
-              color: colors.background
+              background: colors.accent
             }}
           >
             {isProcessing ? (
@@ -167,7 +157,7 @@ export default function EditRequestForm({
                 処理中...
               </div>
             ) : (
-              mode === 'edit' ? '実行' : '送信'
+              <Send size={16} />
             )}
           </button>
         </div>
