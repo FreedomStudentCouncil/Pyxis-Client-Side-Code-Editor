@@ -312,25 +312,61 @@ export default function PaneContainer({
             isBottomPanelVisible={isBottomPanelVisible}
             wordWrapConfig={wordWrapConfig}
             onContentChange={async (tabId: string, content: string) => {
-              onTabContentChange(tabId, content);
-              
+              // 1. まず即座にコンテンツ更新とisDirty = true
               setEditors(prev => {
+                const targetTab = activeTab;
+                if (!targetTab) return prev;
+                
                 const updatePaneRecursive = (panes: EditorPane[]): EditorPane[] => {
                   return panes.map(p => {
-                    if (p.id === pane.id) {
+                    if (!p.children) {
+                      // リーフペインの場合、同じパスを持つタブ全てを更新
                       return {
                         ...p,
-                        tabs: p.tabs.map(t => t.id === tabId ? { ...t, content, isDirty: true } : t)
+                        tabs: p.tabs.map(t => 
+                          t.path === targetTab.path 
+                            ? { ...t, content, isDirty: true } 
+                            : t
+                        )
                       };
                     }
-                    if (p.children) {
-                      return { ...p, children: updatePaneRecursive(p.children) };
-                    }
-                    return p;
+                    // 子ペインがある場合は再帰的に処理
+                    return {
+                      ...p,
+                      children: updatePaneRecursive(p.children)
+                    };
                   });
                 };
                 return updatePaneRecursive(prev);
               });
+
+              // 2. コンテンツ変更を親コンポーネントに通知（イベント伝播）
+              onTabContentChange(tabId, content);
+
+              // 3. 保存処理を実行
+              if (currentProject && saveFile && activeTab?.path) {
+                try {
+                  await saveFile(activeTab.path, content);
+                  
+                  // 保存完了後にisDirtyフラグをクリア
+                  setEditors(prev => {
+                    const updatePaneRecursive = (panes: EditorPane[]): EditorPane[] => {
+                      return panes.map(p => ({
+                        ...p,
+                        tabs: p.tabs.map(t => 
+                          t.path === activeTab.path ? { ...t, isDirty: false } : t
+                        )
+                      }));
+                    };
+                    return updatePaneRecursive(prev);
+                  });
+
+                  // Git状態の更新をトリガー
+                  setGitRefreshTrigger(prev => prev + 1);
+                } catch (error) {
+                  console.error('Failed to save file:', error);
+                }
+              }
             }}
           />
         ))}
