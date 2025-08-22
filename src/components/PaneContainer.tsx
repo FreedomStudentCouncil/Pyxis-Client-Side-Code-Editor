@@ -20,6 +20,7 @@ import {
   resizePane,
   flattenPanes
 } from '@/hooks/pane';
+import { active } from 'd3';
 
 interface PaneContainerProps {
   pane: EditorPane;
@@ -32,9 +33,10 @@ interface PaneContainerProps {
   refreshProjectFiles?: () => Promise<void>;
   setGitRefreshTrigger: (fn: (prev: number) => number) => void;
   setFileSelectState: (state: { open: boolean; paneIdx: number | null }) => void;
-  onTabContentChange: (tabId: string, content: string) => void;
+  onTabContentChange: (tabId: string, content: string) => (void | ((content: string) => void));
   isBottomPanelVisible: boolean;
   toggleBottomPanel: () => void;
+  nodeRuntimeOperationInProgress: boolean;
 }
 
 export default function PaneContainer({
@@ -51,6 +53,7 @@ export default function PaneContainer({
   onTabContentChange,
   isBottomPanelVisible,
   toggleBottomPanel,
+  nodeRuntimeOperationInProgress,
 }: PaneContainerProps) {
   const { colors } = useTheme();
   let wordWrapConfig: 'on' | 'off' = 'off';
@@ -94,6 +97,7 @@ export default function PaneContainer({
                 onTabContentChange={onTabContentChange}
                 isBottomPanelVisible={isBottomPanelVisible}
                 toggleBottomPanel={toggleBottomPanel}
+                nodeRuntimeOperationInProgress={nodeRuntimeOperationInProgress}
               />
             </div>
             
@@ -311,9 +315,9 @@ export default function PaneContainer({
             bottomPanelHeight={200}
             isBottomPanelVisible={isBottomPanelVisible}
             wordWrapConfig={wordWrapConfig}
+            onContentChangeImmediate={onTabContentChange}
             onContentChange={async (tabId: string, content: string) => {
               // タブ内容変更をコールバックに伝播（親コンポーネントで即時更新用に使用）
-              onTabContentChange(tabId, content);
 
               // プロジェクトとファイルが有効な場合は保存処理を実行
               if (currentProject && saveFile && activeTab?.path) {
