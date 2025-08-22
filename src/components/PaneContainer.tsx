@@ -312,55 +312,33 @@ export default function PaneContainer({
             isBottomPanelVisible={isBottomPanelVisible}
             wordWrapConfig={wordWrapConfig}
             onContentChange={async (tabId: string, content: string) => {
-              // 1. まず即座にコンテンツ更新とisDirty = true
-              setEditors(prev => {
-                const targetTab = activeTab;
-                if (!targetTab) return prev;
-                
-                const updatePaneRecursive = (panes: EditorPane[]): EditorPane[] => {
-                  return panes.map(p => {
-                    if (!p.children) {
-                      // リーフペインの場合、同じパスを持つタブ全てを更新
-                      return {
-                        ...p,
-                        tabs: p.tabs.map(t => 
-                          t.path === targetTab.path 
-                            ? { ...t, content, isDirty: true } 
-                            : t
-                        )
-                      };
-                    }
-                    // 子ペインがある場合は再帰的に処理
-                    return {
-                      ...p,
-                      children: updatePaneRecursive(p.children)
-                    };
-                  });
-                };
-                return updatePaneRecursive(prev);
-              });
-
-              // 2. コンテンツ変更を親コンポーネントに通知（イベント伝播）
+              // タブ内容変更をコールバックに伝播（親コンポーネントで即時更新用に使用）
               onTabContentChange(tabId, content);
 
-              // 3. 保存処理を実行
+              // プロジェクトとファイルが有効な場合は保存処理を実行
               if (currentProject && saveFile && activeTab?.path) {
                 try {
+                  // ファイルの保存を実行
                   await saveFile(activeTab.path, content);
                   
-                  // 保存完了後にisDirtyフラグをクリア
+                  // 保存成功後はisDirtyフラグをクリア
                   setEditors(prev => {
                     const updatePaneRecursive = (panes: EditorPane[]): EditorPane[] => {
-                      return panes.map(p => ({
-                        ...p,
-                        tabs: p.tabs.map(t => 
-                          t.path === activeTab.path ? { ...t, isDirty: false } : t
-                        )
-                      }));
+                      return panes.map(p => {
+                        if (!p.children) {
+                          return {
+                            ...p,
+                            tabs: p.tabs.map(t => 
+                              t.path === activeTab.path ? { ...t, isDirty: false } : t
+                            )
+                          };
+                        }
+                        return { ...p, children: updatePaneRecursive(p.children) };
+                      });
                     };
                     return updatePaneRecursive(prev);
                   });
-
+                  
                   // Git状態の更新をトリガー
                   setGitRefreshTrigger(prev => prev + 1);
                 } catch (error) {
