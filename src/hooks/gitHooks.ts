@@ -46,24 +46,6 @@ export function useGitMonitor({
       }
       try {
         const gitCommands = new GitCommands(currentProject.name, async (path: string, type: 'file' | 'folder' | 'delete', content?: string) => {
-          await handleFileOperation({
-            path,
-            type,
-            content,
-            isNodeRuntime: false,
-            currentProject,
-            loadProject,
-            saveFile,
-            deleteFile,
-            tabs,
-            setTabs,
-            activeTabId,
-            setActiveTabId,
-            projectFiles,
-            setGitRefreshTrigger,
-            setNodeRuntimeOperationInProgress,
-            refreshProjectFiles,
-          });
           setTimeout(() => {
             setGitRefreshTrigger((prev: number) => prev + 1);
           }, 200);
