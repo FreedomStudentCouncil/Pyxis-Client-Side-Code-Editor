@@ -326,51 +326,7 @@ export class NodeJSRuntime {
       clearTimeout: globalThis.clearTimeout,
       clearInterval: globalThis.clearInterval,
       fetch: globalThis.fetch.bind(globalThis),
-      atob: globalThis.atob,
-      btoa: globalThis.btoa,
       crypto: globalThis.crypto,
-      queueMicrotask: globalThis.queueMicrotask,
-      structuredClone: globalThis.structuredClone,
-
-      // Performance-related
-      performance: globalThis.performance,
-      requestAnimationFrame: globalThis.requestAnimationFrame,
-      cancelAnimationFrame: globalThis.cancelAnimationFrame,
-
-      // Broadcast & messaging
-      BroadcastChannel: globalThis.BroadcastChannel,
-      postMessage: globalThis.postMessage,
-
-      // // Web Workers
-      // Worker: globalThis.Worker,
-      // SharedWorker: globalThis.SharedWorker,
-
-      // Streams / Encoding
-      ReadableStream: globalThis.ReadableStream,
-      WritableStream: globalThis.WritableStream,
-      TransformStream: globalThis.TransformStream,
-      TextEncoder: globalThis.TextEncoder,
-      TextDecoder: globalThis.TextDecoder,
-
-      // // URL & Networking utilities
-      // URL: globalThis.URL,
-      // URLSearchParams: globalThis.URLSearchParams,
-      // FormData: globalThis.FormData,
-      // Blob: globalThis.Blob,
-      // File: globalThis.File,
-      // FileReader: globalThis.FileReader,
-      // Response: globalThis.Response,
-      // Request: globalThis.Request,
-      // Headers: globalThis.Headers,
-
-      // Compression / Binary
-      CompressionStream: globalThis.CompressionStream,
-      DecompressionStream: globalThis.DecompressionStream,
-      ArrayBuffer: globalThis.ArrayBuffer,
-      Uint8Array: globalThis.Uint8Array,
-      Uint16Array: globalThis.Uint16Array,
-      Uint32Array: globalThis.Uint32Array,
-      DataView: globalThis.DataView,
     };
   }
 
