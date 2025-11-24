@@ -178,7 +178,13 @@ type ShellOptions = {
   commandRegistry?: any;
 };
 
-type TokenObj = { text: string; quote: 'single' | 'double' | null; cmdSub?: string };
+type TokenObj = { 
+  text: string; 
+  quote: 'single' | 'double' | null; 
+  cmdSub?: string;
+  arithExpr?: string;
+};
+
 type Segment = {
   raw: string;
   // tokens may be TokenObj (from parser) or plain strings (after splitting/globbing)
@@ -335,40 +341,38 @@ export class StreamShell {
 
     // Resolve command-substitution markers in tokens before launching handler.
     // parser now provides tokens as objects with optional cmdSub and quote.
+    // Resolve command-substitution markers AND arithmetic expansion markers in tokens
     if (seg.tokens && seg.tokens.length > 0) {
-      // debug: inspect incoming token shapes
-      const withCmdSub: TokenObj[] = [];
+      const processed: TokenObj[] = [];
+      
       for (const tk of seg.tokens) {
-        // tk may be a plain string or a TokenObj
+        // 既存: コマンド置換処理
         if (typeof tk !== 'string' && tk.cmdSub) {
           try {
             const subRes = await this.run(tk.cmdSub);
             const rawOut = String(subRes.stdout || '');
-
-            // normalize command-substitution output: remove trailing newline(s)
-            // and collapse internal newlines to spaces so quoted substitutions
-            // remain a single word. This approximates POSIX behavior for
-            // command-substitutions inside quotes.
             const normalized = rawOut.replace(/\r?\n/g, ' ').replace(/\s+$/g, '');
-            // If substitution was quoted, preserve as single token
+            
             if (tk.quote === 'single' || tk.quote === 'double') {
-              withCmdSub.push({ text: normalized, quote: tk.quote });
+              processed.push({ text: normalized, quote: tk.quote });
             } else {
-              // unquoted: place the substitution text (may be split later by IFS)
-              withCmdSub.push({ text: rawOut, quote: null });
+              processed.push({ text: rawOut, quote: null });
             }
             continue;
           } catch (e) {
-            // on error, leave as empty
-            withCmdSub.push({ text: '', quote: typeof tk === 'string' ? null : tk.quote });
+            processed.push({ text: '', quote: typeof tk === 'string' ? null : tk.quote });
             continue;
           }
         }
-        // normalize plain strings to TokenObj
-        if (typeof tk === 'string') withCmdSub.push({ text: tk, quote: null });
-        else withCmdSub.push(tk);
+        // 通常のトークン
+        if (typeof tk === 'string') {
+          processed.push({ text: tk, quote: null });
+        } else {
+          processed.push(tk);
+        }
       }
-      seg.tokens = withCmdSub;
+      
+      seg.tokens = processed;
     }
 
     // Field splitting (IFS) and pathname expansion (glob)
@@ -1038,29 +1042,6 @@ export class StreamShell {
         lines.push(p);
       }
     }
-    // Evaluate simple arithmetic $(( ... )) where used in assignments
-    // This helper evaluates numeric arithmetic expressions found as $((...)).
-    // Note: it intentionally only supports numeric expressions composed of
-    // digits, whitespace and arithmetic operators. Variable names are replaced
-    // with numeric values from `localVars` before evaluation.
-    const evalArithmeticInString = (s: string, localVars: Record<string, string>) => {
-      return s.replace(/\$\(\((.*?)\)\)/g, (_, expr) => {
-        // replace variable names with numeric values from localVars
-        const safe = expr.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g, (m: string) => {
-          if (/^\d+$/.test(m)) return m;
-          const v = localVars[m];
-          return String(Number(v || 0));
-        });
-        // allow only digits, spaces and arithmetic operators
-        if (!/^[0-9+\-*/()%\s]+$/.test(safe)) return '0';
-        try {
-          const val = Function(`return (${safe})`)();
-          return String(Number(val));
-        } catch (e) {
-          return '0';
-        }
-      });
-    };
 
     // Helper: evaluate command-substitutions in a string (supports $(...) and `...`)
     // Replaces occurrences with the stdout of the inner command (trimmed).
@@ -1116,14 +1097,6 @@ export class StreamShell {
         const res = await this.run(innerEval);
         const replacement = String(res.stdout || '');
         out = out.slice(0, idx) + replacement + out.slice(end + 1);
-      }
-
-      // After command-substitutions, also perform arithmetic expansion $((...))
-      // so expressions inside the resulting string are evaluated using localVars.
-      try {
-        out = evalArithmeticInString(out, localVars);
-      } catch (e) {
-        // if arithmetic expansion fails, leave the string as-is
       }
 
       return out;
@@ -1203,18 +1176,47 @@ export class StreamShell {
     // 3) arithmetic expansion $((...))
     // This centralizes the expansion order so callers don't need to mix
     // interpolate/evalCommandSubstitutions/evalArithmeticInString calls.
+    // runScript 内の evaluateLine 関数を以下のように修正
     const evaluateLine = async (lineStr: string, localVars: Record<string, string>) => {
-      // first do variable/positional interpolation
+      // 1. 変数・位置パラメータ展開
       const afterInterp = interpolate(lineStr, localVars);
-      // then expand command substitutions and nested arithmetic
-      const afterCmdSub = await evalCommandSubstitutions(afterInterp, localVars);
-      // finally arithmetic expansion (already applied inside evalCommandSubstitutions for nested results,
-      // but run again here for safety on direct inputs)
-      try {
-        return evalArithmeticInString(afterCmdSub, localVars);
-      } catch (e) {
-        return afterCmdSub;
-      }
+      
+      // 2. 算術展開 $((...))
+      let afterArith = afterInterp;
+      const arithRegex = /\$\(\(([^)]+(?:\([^)]*\))*[^)]*)\)\)/g;
+      afterArith = afterArith.replace(arithRegex, (match, expr) => {
+        try {
+          // 2-1. 式内の変数を localVars で置換
+          let resolved = expr.replace(/\$([A-Za-z_][A-Za-z0-9_]*)/g, (m: string, varName: string) => {
+            const val = localVars[varName];
+            return String(Number(val) || 0);
+          });
+          
+          // 2-2. ${VAR} 形式も対応
+          resolved = resolved.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m: string, varName: string) => {
+            const val = localVars[varName];
+            return String(Number(val) || 0);
+          });
+          
+          // 2-3. 安全性チェック（数値と演算子のみ許可）
+          if (!/^[0-9+*\/%()\s-]+$/.test(resolved)) {
+            console.warn(`[arith expansion] unsafe expression after substitution: ${resolved}`);
+            return '0';
+          }
+          
+          // 2-4. JavaScript で評価
+          const result = Function(`'use strict'; return (${resolved})`)();
+          return String(Math.floor(Number(result)));
+        } catch (e) {
+          console.error(`[arith expansion] evaluation failed for "${expr}": ${(e as any)?.message}`);
+          return '0';
+        }
+      });
+      
+      // 3. コマンド置換 (`...` と $(...))
+      const afterCmdSub = await evalCommandSubstitutions(afterArith, localVars);
+      
+      return afterCmdSub;
     };
 
     // Evaluate a condition used in if/elif/while. Supports leading '!' negation
@@ -1503,10 +1505,11 @@ export class StreamShell {
         }
 
         // assignment-only: VAR=VALUE (no command)
-        const assignMatch = execLine.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s);
+        const assignMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s);
         if (assignMatch) {
           const name = assignMatch[1];
           let rhs = assignMatch[2] ?? '';
+          
           // trim surrounding quotes if present
           rhs = rhs.trim();
           if (
@@ -1515,15 +1518,16 @@ export class StreamShell {
           ) {
             rhs = rhs.slice(1, -1);
           }
-          // handle arithmetic expansion $((...)) before command-substitution
-          rhs = evalArithmeticInString(rhs, localVars);
-          // evaluate command substitutions in rhs
+          
+          // 統一された評価パイプラインを使用:
+          // 1. 変数展開 (interpolate)
+          // 2. 算術展開 $((...))
+          // 3. コマンド置換 $(...) / `...`
           try {
-            const evaluated = await evalCommandSubstitutions(rhs, localVars);
-            // store into localVars for subsequent interpolation
+            const evaluated = await evaluateLine(rhs, localVars);
             localVars[name] = evaluated;
           } catch (e) {
-            // fallback: raw assignment
+            // 展開失敗時は生の値を格納
             localVars[name] = rhs;
           }
           continue;

@@ -10,7 +10,7 @@ export class ParseError extends Error {
   }
 }
 
-export type Token = { text: string; quote: 'single' | 'double' | null; cmdSub?: string };
+export type Token = { text: string; quote: 'single' | 'double' | null; cmdSub?: string; arithExpr?: string };
 
 export type Segment = {
   raw: string;
@@ -26,18 +26,19 @@ export type Segment = {
   background?: boolean;
 };
 
-// Extract command-substitution segments and replace them with placeholders so
-// our tokenizer can safely treat them as words. Supports backticks and $(...).
+// Extract command-substitution segments and arithmetic expansions,
+// replacing them with placeholders. Supports backticks, $(...), and $((...)).
 function extractCommandSubstitutions(line: string): {
   line: string;
-  map: Record<string, { cmd: string; quote: 'single' | 'double' | null }>;
+  map: Record<string, { cmd?: string; arith?: string; quote: 'single' | 'double' | null }>;
 } {
-  const map: Record<string, { cmd: string; quote: 'single' | 'double' | null }> = {};
+  const map: Record<string, { cmd?: string; arith?: string; quote: 'single' | 'double' | null }> = {};
   let out = '';
   let i = 0;
   let id = 0;
   let inSingle = false;
   let inDouble = false;
+  
   while (i < line.length) {
     const ch = line[i];
     if (ch === "'" && !inDouble) {
@@ -52,7 +53,8 @@ function extractCommandSubstitutions(line: string): {
       i++;
       continue;
     }
-    // allow backticks except inside single quotes; backticks may appear inside double quotes
+    
+    // Handle backticks (not inside single quotes)
     if (ch === '`' && !inSingle) {
       let j = i + 1;
       let buf = '';
@@ -62,12 +64,54 @@ function extractCommandSubstitutions(line: string): {
       if (j >= line.length || line[j] !== '`')
         throw new ParseError('Unterminated backtick command substitution', i);
       const key = `__CMD_SUB_${id++}__`;
-      // If we're inside double quotes, record that so the executor can avoid field-splitting
       map[key] = { cmd: buf, quote: inDouble ? 'double' : null };
       out += key;
       i = j + 1;
       continue;
     }
+    
+    //TODO: 複雑なネストケース未対応 ex: `echo $(echo $((1 + 2 * (1 + 3))))`
+    // Handle $((...)) - arithmetic expansion
+    if (ch === '$' && line[i + 1] === '(' && line[i + 2] === '(' && !inSingle) {
+      let j = i + 3;
+      let depth = 0; // 内部の追加括弧をカウント
+      let buf = '';
+      
+      while (j < line.length) {
+        if (line[j] === '(') {
+          depth++;
+          buf += line[j++];
+          continue;
+        }
+        if (line[j] === ')') {
+          if (depth === 0) {
+            // 最初の ) を検出 → 次も ) であるべき
+            if (j + 1 < line.length && line[j + 1] === ')') {
+              j += 2; // )) をスキップ
+              break;
+            } else {
+              throw new ParseError('Unterminated $((...)) - missing second )', i);
+            }
+          }
+          depth--;
+          buf += line[j++];
+          continue;
+        }
+        buf += line[j++];
+      }
+      
+      if (depth !== 0) {
+        throw new ParseError('Unterminated $((...)) arithmetic expansion', i);
+      }
+      
+      const key = `__ARITH_${id++}__`;
+      map[key] = { arith: buf, quote: inSingle ? 'single' : inDouble ? 'double' : null };
+      out += key;
+      i = j;
+      continue;
+    }
+    
+    // Handle $(...) - command substitution
     if (ch === '$' && line[i + 1] === '(' && !inSingle) {
       let j = i + 2;
       let depth = 1;
@@ -393,10 +437,25 @@ export function parseCommandLine(
     const rawTok = String(tok);
     const tkn = makeTokenFromRaw(rawTok);
 
-    // If this token is exactly a command-substitution placeholder, attach cmdSub
+    // Check if this token is a command-substitution placeholder
     if (tkn.text.startsWith('__CMD_SUB_') && extracted.map[tkn.text]) {
       const info = extracted.map[tkn.text];
-      cur.tokens.push({ text: tkn.text, quote: info.quote ?? tkn.quote, cmdSub: info.cmd });
+      cur.tokens.push({ 
+        text: tkn.text, 
+        quote: info.quote ?? tkn.quote, 
+        cmdSub: info.cmd 
+      });
+      continue;
+    }
+
+    // Check if this token is an arithmetic expansion placeholder
+    if (tkn.text.startsWith('__ARITH_') && extracted.map[tkn.text]) {
+      const info = extracted.map[tkn.text];
+      cur.tokens.push({ 
+        text: tkn.text, 
+        quote: info.quote ?? tkn.quote, 
+        arithExpr: info.arith 
+      });
       continue;
     }
 
