@@ -1,5 +1,6 @@
 import { Monaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+
 /**
  * MonarchベースのJSX/TSX強化言語定義
  * npm installなしでトークンハイライトを改善
@@ -52,15 +53,23 @@ export function registerEnhancedJSXLanguage(monaco: Monaco) {
     tokenizer: {
       root: [
         // JSXタグの開始 <Component
-        [/(<)([A-Z][\w]*)(>|\/?>|\s)/, ['delimiter.bracket', 'tag', 'delimiter.bracket']],
-        [/(<)([a-z][\w-]*)(>|\/?>|\s)/, ['delimiter.bracket', 'tag', 'delimiter.bracket']],
+        [/(<)([A-Z][\w]*)/, ['delimiter.bracket', { token: 'tag', next: '@jsxTag' }]],
+        [/(<)([a-z][\w-]*)/, ['delimiter.bracket', { token: 'tag', next: '@jsxTag' }]],
         
         // JSXクロージングタグ </Component>
         [/(<\/)([A-Z][\w]*)(>)/, ['delimiter.bracket', 'tag', 'delimiter.bracket']],
         [/(<\/)([a-z][\w-]*)(>)/, ['delimiter.bracket', 'tag', 'delimiter.bracket']],
 
-        // JSX属性
-        [/\s+([a-zA-Z][\w-]*)(?=\s*=)/, 'attribute.name'],
+        // メソッド呼び出し object.method()
+        [/([a-zA-Z_$][\w$]*)(\s*)(\.)(\s*)([a-z_$][\w$]*)(?=\s*\()/, 
+          ['identifier', '', 'delimiter', '', 'method']],
+        
+        // プロパティアクセス object.property
+        [/([a-zA-Z_$][\w$]*)(\s*)(\.)(\s*)([a-z_$][\w$]*)/, 
+          ['identifier', '', 'delimiter', '', 'property']],
+        
+        // 関数呼び出し functionName()
+        [/[a-z_$][\w$]*(?=\s*\()/, 'function.call'],
         
         // 識別子とキーワード
         [/[a-z_$][\w$]*/, {
@@ -172,6 +181,47 @@ export function registerEnhancedJSXLanguage(monaco: Monaco) {
       bracketCounting: [
         [/\{/, 'delimiter.bracket', '@bracketCounting'],
         [/\}/, 'delimiter.bracket', '@pop'],
+        { include: 'root' }
+      ],
+
+      // JSXタグ内の処理（属性とテキストを区別）
+      jsxTag: [
+        // JSX属性名
+        [/([a-zA-Z][\w-]*)(?=\s*=)/, 'attribute.name'],
+        
+        // タグの終了 > or />
+        [/>/, { token: 'delimiter.bracket', next: '@jsxText' }],
+        [/\/>/, { token: 'delimiter.bracket', next: '@pop' }],
+        
+        // JSX属性値（文字列）
+        [/"([^"\\]|\\.)*"/, 'string'],
+        [/'([^'\\]|\\.)*'/, 'string'],
+        
+        // JSX式 {...}
+        [/\{/, { token: 'delimiter.bracket', next: '@jsxExpression' }],
+        
+        // 空白
+        [/\s+/, ''],
+        
+        // その他の識別子
+        [/[a-zA-Z][\w-]*/, 'attribute.name'],
+      ],
+
+      // JSXタグ内のテキストコンテンツ
+      jsxText: [
+        // 子要素のJSXタグ開始
+        [/</, { token: 'delimiter.bracket', next: '@pop' }],
+        
+        // JSX式
+        [/\{/, { token: 'delimiter.bracket', next: '@jsxExpression' }],
+        
+        // テキストコンテンツ（通常のテキストとして表示）
+        [/[^<{]+/, 'string.jsx'],
+      ],
+
+      // JSX内の式 {...}
+      jsxExpression: [
+        [/\}/, { token: 'delimiter.bracket', next: '@pop' }],
         { include: 'root' }
       ],
     },

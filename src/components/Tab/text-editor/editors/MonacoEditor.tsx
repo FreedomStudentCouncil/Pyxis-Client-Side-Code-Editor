@@ -109,14 +109,15 @@ export default function MonacoEditor({
             { token: 'class', foreground: '4EC9B0' },
             { token: 'interface', foreground: '4EC9B0' },
             
-            // 変数・パラメータ系
-            { token: 'parameter', foreground: '9CDCFE' },
-            { token: 'variable', foreground: '9CDCFE' },
-            { token: 'property', foreground: '9CDCFE' },
-            { token: 'identifier', foreground: '9CDCFE' },
+            // 変数・パラメータ系（青を減らす）
+            { token: 'parameter', foreground: 'D4D4D4' },
+            { token: 'variable', foreground: 'D4D4D4' },
+            { token: 'property', foreground: 'C8C8C8' },
+            { token: 'identifier', foreground: 'D4D4D4' },
             
-            // 関数系
+            // 関数・メソッド系
             { token: 'function', foreground: 'DCDCAA' },
+            { token: 'function.call', foreground: 'DCDCAA' },
             { token: 'method', foreground: 'DCDCAA' },
             
             // JSX専用トークン（強調表示）
@@ -125,6 +126,7 @@ export default function MonacoEditor({
             { token: 'attribute.name', foreground: '9CDCFE', fontStyle: 'italic' },
             { token: 'attribute.name.jsx', foreground: '9CDCFE', fontStyle: 'italic' },
             { token: 'attribute.value', foreground: 'CE9178' },
+            { token: 'string.jsx', foreground: 'D4D4D4' }, // JSXタグ内のテキスト
           ],
           colors: {
             'editor.background': colors.editorBg || '#1e1e1e',

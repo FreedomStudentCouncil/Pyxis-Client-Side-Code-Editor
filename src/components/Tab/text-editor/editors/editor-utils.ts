@@ -37,6 +37,11 @@ export const getLanguage = (filename: string): string => {
     ext.endsWith('.hxx')
   )
     return 'cpp';
+  if (ext.endsWith('.cshtml')) return 'razor';
+  if (ext.endsWith('.csproj')) return 'xml';
+  if (ext.endsWith('.vb')) return 'vb';
+  if (ext.endsWith('.fs') || ext.endsWith('.fsi') || ext.endsWith('.fsx')) return 'fsharp';
+
   if (ext.endsWith('.c') || ext.endsWith('.h')) return 'c';
   if (ext.endsWith('.cs')) return 'csharp';
   if (ext.endsWith('.xml') || ext.endsWith('.xsd') || ext.endsWith('.xslt') || ext.endsWith('.xsl'))
@@ -53,7 +58,6 @@ export const getLanguage = (filename: string): string => {
   if (ext.endsWith('.r')) return 'r';
   if (ext.endsWith('.pl')) return 'perl';
   if (ext.endsWith('.lua')) return 'lua';
-  if (ext.endsWith('.dart')) return 'dart';
   if (ext.endsWith('.scala')) return 'scala';
   if (ext.endsWith('.groovy')) return 'groovy';
   if (ext.endsWith('.coffee')) return 'coffeescript';
