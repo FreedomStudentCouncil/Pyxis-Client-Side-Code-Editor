@@ -109,11 +109,11 @@ export default function MonacoEditor({
             { token: 'class', foreground: '4EC9B0' },
             { token: 'interface', foreground: '4EC9B0' },
             
-            // 変数・パラメータ系（青を減らす）
-            { token: 'parameter', foreground: 'D4D4D4' },
-            { token: 'variable', foreground: 'D4D4D4' },
-            { token: 'property', foreground: 'C8C8C8' },
-            { token: 'identifier', foreground: 'D4D4D4' },
+            // 変数・パラメータ系
+            { token: 'parameter', foreground: '9CDCFE' },
+            { token: 'variable', foreground: '9CDCFE' },
+            { token: 'property', foreground: 'D4D4D4' }, // プロパティは白系に
+            { token: 'identifier', foreground: '9CDCFE' },
             
             // 関数・メソッド系
             { token: 'function', foreground: 'DCDCAA' },
